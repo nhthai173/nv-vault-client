@@ -7,8 +7,8 @@ from pathlib import Path
 
 KEYRING_SERVICE = "nv-vault"
 DEFAULTS = {"api_version": "v1", "timeout": "30"}
-KEYS = ("url", "user", "api_version", "timeout", "source")     # `config set` accepts these; source = where `upgrade` installs from
-ENV = {"url": "NV_VAULT_URL", "user": "NV_VAULT_USER", "api_version": "NV_VAULT_API_VERSION", "timeout": "NV_VAULT_TIMEOUT", "source": "NV_VAULT_SOURCE"}
+KEYS = ("url", "user", "api_version", "timeout", "source", "product")     # `config set` accepts these; source = where `upgrade` installs from
+ENV = {"url": "NV_VAULT_URL", "user": "NV_VAULT_USER", "api_version": "NV_VAULT_API_VERSION", "timeout": "NV_VAULT_TIMEOUT", "source": "NV_VAULT_SOURCE", "product": "NV_VAULT_PRODUCT"}
 
 
 class ConfigError(Exception):
@@ -65,6 +65,8 @@ def resolve(flags: dict, profile: str | None = None, env=os.environ) -> dict:
     if not out["url"]:
         raise ConfigError("no server URL: `nv-vault config set url http://host:8095`, or --url / NV_VAULT_URL")
     out["url"] = out["url"].rstrip("/")
+    if out["product"] is not None and not out["product"].strip():
+        out["product"] = None
     try:
         out["timeout"] = float(out["timeout"])
     except ValueError:

@@ -21,7 +21,7 @@ class FakeKeyring:
 def env(tmp_path, monkeypatch):
     kr = FakeKeyring()
     monkeypatch.setattr(cfg, "_keyring", lambda: kr)
-    for k in ("NV_VAULT_URL", "NV_VAULT_USER", "NV_VAULT_API_VERSION", "NV_VAULT_TIMEOUT", "NV_VAULT_TOKEN", "NV_VAULT_PROFILE"):
+    for k in ("NV_VAULT_URL", "NV_VAULT_USER", "NV_VAULT_API_VERSION", "NV_VAULT_TIMEOUT", "NV_VAULT_TOKEN", "NV_VAULT_PROFILE", "NV_VAULT_PRODUCT"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("NV_VAULT_CONFIG", str(tmp_path / "c.json"))
     return kr
@@ -31,7 +31,7 @@ def test_precedence_flag_env_profile_default(env, monkeypatch):
     with pytest.raises(cfg.ConfigError, match="no server URL"):
         cfg.resolve({})
     assert cli.main(["config", "set", "url", "http://file:1/"]) == 0
-    assert cfg.resolve({}) == {"url": "http://file:1", "user": None, "api_version": "v1", "timeout": 30.0, "source": None}
+    assert cfg.resolve({}) == {"url": "http://file:1", "user": None, "api_version": "v1", "timeout": 30.0, "source": None, "product": None}
     monkeypatch.setenv("NV_VAULT_URL", "http://env:2")
     assert cfg.resolve({})["url"] == "http://env:2"
     assert cfg.resolve({"url": "http://flag:3"})["url"] == "http://flag:3"
@@ -131,3 +131,12 @@ def test_skill_ships_and_installs(tmp_path, capsys):
     assert (d / "SKILL.md").read_text(encoding="utf-8") == out
     assert cli.main(["skill", "install", "--dir", str(d)]) == 1          # no silent overwrite
     assert cli.main(["skill", "install", "--dir", str(d), "--force"]) == 0
+
+
+def test_product_is_required_for_key_commands(env, monkeypatch, capsys):
+    monkeypatch.setenv("NV_VAULT_TOKEN", "t"); monkeypatch.setenv("NV_VAULT_URL", "http://127.0.0.1:9")
+    assert cli.main(["ek", "get", "p", "1"]) == 1
+    assert "no product" in capsys.readouterr().err
+    assert cli.main(["config", "set", "product", "myproduct"]) == 0
+    assert cfg.resolve({})["product"] == "myproduct"
+    assert cfg.resolve({"product": "other-product"})["product"] == "other-product"

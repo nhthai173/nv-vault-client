@@ -39,7 +39,8 @@ def parser() -> argparse.ArgumentParser:
     ap.add_argument("--version", action="version", version=f"nv-vault {_version()}")
     g = ap.add_argument_group("global options (override env and config file)")
     g.add_argument("--profile", help="named server in the config file (default: NV_VAULT_PROFILE or the default profile)")
-    g.add_argument("--url"); g.add_argument("--api-version", dest="api_version"); g.add_argument("--timeout")
+    g.add_argument("--url"); g.add_argument("--product", help="product slug the key commands act on (e.g. myproduct); short name such as myproduct")
+    g.add_argument("--api-version", dest="api_version"); g.add_argument("--timeout")
     g.add_argument("--token", help="prefer `nv-vault login` or NV_VAULT_TOKEN: argv is visible to other users")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
@@ -60,6 +61,7 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser("login", help="store the token for the profile in the OS keyring (prompted, not echoed)")
     sub.add_parser("logout", help="remove the stored token")
     sub.add_parser("health"); sub.add_parser("sync", help="have the server git-pull")
+    sub.add_parser("products", help="products your token can use")
     t = sub.add_parser("trust", help="serial and signed trust store")
     t.add_argument("-o", "--out", type=Path, help="write trusted_vendors.enc here")
     sub.add_parser("trust-sign", help="(write role) bump serial, sign the trust store")
@@ -76,6 +78,7 @@ def parser() -> argparse.ArgumentParser:
     x.add_argument("plugin"); x.add_argument("version"); x.add_argument("--kp-file", type=Path, required=True)
     b = sub.add_parser("keyblob", help="mint a per-license key-blob; K_p stays on the server")
     b.add_argument("plugin"); b.add_argument("version")
+    b.add_argument("--project", help="customer/project the blob is for (kept in the server audit log)")
     m = b.add_mutually_exclusive_group(required=True)
     m.add_argument("--seed-file", type=Path); m.add_argument("--seed", metavar="HEX")
     b.add_argument("-o", "--out", type=Path, required=True)
@@ -153,27 +156,37 @@ def run(a, env=os.environ) -> None:
     if a.cmd == "logout":
         cfg.delete_token(prof); print("token removed")
         return
-    s = cfg.resolve({"url": a.url, "api_version": a.api_version, "timeout": a.timeout}, a.profile, env)
+    s = cfg.resolve({"url": a.url, "api_version": a.api_version, "timeout": a.timeout, "product": a.product}, a.profile, env)
     tok = cfg.get_token(prof, a.token, env)
 
     def api(method, path, body=None, versioned=True):
-        return call(s["url"], s["api_version"], tok, method, path, body, s["timeout"], versioned)
+        r = call(s["url"], s["api_version"], tok, method, path, body, s["timeout"], versioned)
+        if isinstance(r, dict) and r.get("stale"):
+            print("nv-vault: warning: the server could not fetch the latest vault data; this answer may be stale", file=sys.stderr)
+        return r
+
+    def pa(path):       # product-scoped path
+        if not s["product"]:
+            raise cfg.ConfigError("no product: pass --product, set NV_VAULT_PRODUCT, or `nv-vault config set product <slug>`")
+        return f"/{s['product']}{path}"
 
     if a.cmd == "health":
         print(api("GET", "/healthz", versioned=False))
+    elif a.cmd == "products":
+        print("\n".join(api("GET", "/products")["products"]))
     elif a.cmd == "sync":
         api("POST", "/sync"); print("synced")
     elif a.cmd == "trust":
-        r = api("GET", "/trust")
+        r = api("GET", pa("/trust"))
         if a.out:
             if not r["blob_b64"]:
                 raise ApiError("the server has no signed trust store yet (run trust-sign)")
             a.out.write_bytes(base64.b64decode(r["blob_b64"]))
         print(f"serial {r['serial']}" + (f" -> {a.out}" if a.out else ""))
     elif a.cmd == "trust-sign":
-        print("serial", api("POST", "/trust/sign")["serial"])
+        print("serial", api("POST", pa("/trust/sign"))["serial"])
     elif a.cmd == "key" and a.sub == "get":
-        r = api("GET", f"/keys/{a.vendor}/{a.key_id}")
+        r = api("GET", pa(f"/keys/{a.vendor}/{a.key_id}"))
         if a.out:
             write_secret(a.out, r["private_hex"]); print(a.out)
         else:
@@ -181,19 +194,19 @@ def run(a, env=os.environ) -> None:
     elif a.cmd == "key":
         body = {"name": a.name, "public_hex": a.public,
                 "private_hex": a.import_file.read_text().strip() if a.import_file else None}
-        print(api("POST", f"/keys/{a.vendor}/{a.key_id}", body)["public_hex"])
+        print(api("POST", pa(f"/keys/{a.vendor}/{a.key_id}"), body)["public_hex"])
     elif a.cmd == "ek" and a.sub == "get":
-        kp = api("GET", f"/ek/{a.plugin}/{a.version}")["kp_hex"]
+        kp = api("GET", pa(f"/ek/{a.plugin}/{a.version}"))["kp_hex"]
         if a.out:
             write_secret(a.out, kp); print(a.out)
         else:
             print(_mask(kp))
     elif a.cmd == "ek":
-        r = api("PUT", f"/ek/{a.plugin}/{a.version}", {"kp_hex": a.kp_file.read_text().strip()})
+        r = api("PUT", pa(f"/ek/{a.plugin}/{a.version}"), {"kp_hex": a.kp_file.read_text().strip()})
         print("stored" if r["stored"] else "already stored (same K_p)")
     elif a.cmd == "keyblob":
         seed = a.seed or a.seed_file.read_text().strip()
-        r = api("POST", "/keyblob", {"plugin": a.plugin, "version": a.version, "seed_hex": seed})
+        r = api("POST", pa("/keyblob"), {"plugin": a.plugin, "version": a.version, "seed_hex": seed, "project": a.project})
         write_secret(a.out, r["blob"]); print(a.out)
 
 

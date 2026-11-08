@@ -25,6 +25,7 @@ Settings, highest priority first: command-line flag, environment variable, profi
 | Setting | Flag | Variable | Default |
 |---|---|---|---|
 | server URL | `--url` | `NV_VAULT_URL` | none |
+| product | `--product` | `NV_VAULT_PRODUCT` | none |
 | API version | `--api-version` | `NV_VAULT_API_VERSION` | `v1` |
 | timeout (s) | `--timeout` | `NV_VAULT_TIMEOUT` | `30` |
 | user | | `NV_VAULT_USER` | none |
@@ -36,7 +37,7 @@ Several servers: `nv-vault --profile backup config set url ...`, `nv-vault --pro
 
 ## Commands
 
-`config`, `login`, `logout`, `health`, `sync`, `trust`, `trust-sign`, `key get|new`, `ek get|put`, `keyblob`, `upgrade`, `skill`. `nv-vault -h` and `nv-vault <command> -h` have the details. Key material is only ever written with `-o FILE`, to a new owner-only file that is never overwritten; without `-o` you see a fingerprint or a public key. Failures print one line (`nv-vault: 403 ...`) and exit 1.
+`config`, `login`, `logout`, `health`, `products`, `sync`, `trust`, `trust-sign`, `key get|new`, `ek get|put`, `keyblob`, `upgrade`, `skill`. `nv-vault -h` and `nv-vault <command> -h` have the details. Key material is only ever written with `-o FILE`, to a new owner-only file that is never overwritten; without `-o` you see a fingerprint or a public key. Failures print one line (`nv-vault: 403 ...`) and exit 1.
 
 `nv-vault upgrade` updates the client: for `uv tool install` it reinstalls from `source`, under `uvx` it clears uv's cache so the next run fetches the latest.
 
