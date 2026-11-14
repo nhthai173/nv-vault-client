@@ -1,6 +1,6 @@
 [project]
 name = "nv-vault"
-version = "0.1.0"
+version = "0.2.0"
 description = "Command-line client for a team key vault server"
 requires-python = ">=3.9"
 dependencies = ["keyring>=24"]   # token in the OS store: Keychain / Credential Manager / Secret Service. Everything else is stdlib.

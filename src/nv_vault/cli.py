@@ -159,8 +159,8 @@ def run(a, env=os.environ) -> None:
     s = cfg.resolve({"url": a.url, "api_version": a.api_version, "timeout": a.timeout, "product": a.product}, a.profile, env)
     tok = cfg.get_token(prof, a.token, env)
 
-    def api(method, path, body=None, versioned=True):
-        r = call(s["url"], s["api_version"], tok, method, path, body, s["timeout"], versioned)
+    def api(method, path, body=None):
+        r = call(s["url"], s["api_version"], tok, method, path, body, s["timeout"])
         if isinstance(r, dict) and r.get("stale"):
             print("nv-vault: warning: the server could not fetch the latest vault data; this answer may be stale", file=sys.stderr)
         return r
@@ -171,7 +171,7 @@ def run(a, env=os.environ) -> None:
         return f"/{s['product']}{path}"
 
     if a.cmd == "health":
-        print(api("GET", "/healthz", versioned=False))
+        print(api("GET", "/healthz"))
     elif a.cmd == "products":
         print("\n".join(api("GET", "/products")["products"]))
     elif a.cmd == "sync":
